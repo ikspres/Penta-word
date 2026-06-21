@@ -359,12 +359,12 @@
    * 친구끼리 쓸 운영 보안규칙 예시는 대화 안내를 참고하세요.
    ===================================================================== */
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_PROJECT.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_PROJECT.appspot.com",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID"
+  apiKey: "AIzaSyCrEidmvSfMM5DFML2U-ANPawuLbWHuOc4",
+  authDomain: "penta-word.firebaseapp.com",
+  projectId: "penta-word",
+  storageBucket: "penta-word.firebasestorage.app",
+  messagingSenderId: "786998808729",
+  appId: "1:786998808729:web:dd3b5984db44c5d8612808"
 };
 
 /* ===== 단어 사전 ===== */
