@@ -249,6 +249,27 @@
   .pid-btn{border:1px solid var(--line-filled); border-radius:10px; background:var(--surface); color:var(--ink); font-weight:600; font-size:14px; padding:0 16px; cursor:pointer; flex-shrink:0;}
   .pid-btn:active{filter:brightness(.92);}
 
+  /* ---------- Info bar (플레이 화면 시드/ID 칩) ---------- */
+  .info-bar{display:flex; gap:7px; padding:7px 6px 0; flex-shrink:0;}
+  .info-chip{
+    display:flex; align-items:center; gap:5px;
+    background:var(--surface); border:1px solid var(--line-filled);
+    border-radius:8px; padding:5px 10px; cursor:pointer;
+    font-size:12px; min-width:0; transition:border-color .15s;
+  }
+  .info-chip:active{border-color:var(--accent);}
+  .info-chip.editing{border-color:var(--accent);}
+  .info-label{color:var(--muted); flex-shrink:0; letter-spacing:.02em;}
+  .info-val{color:var(--accent); font-family:var(--display); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .info-chip.pid-chip{flex:1; min-width:0;}
+  .info-chip input{
+    background:transparent; border:none; outline:none;
+    color:var(--accent); font-family:var(--display); font-size:12px;
+    font-weight:600; min-width:0; padding:0;
+  }
+  .info-chip.seed-chip input{width:64px;}
+  .info-chip.pid-chip input{width:100%; flex:1;}
+
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:.001s !important;}
   }
@@ -267,6 +288,17 @@
       <button class="icon-btn" id="newBtn" aria-label="새 게임">↻</button>
     </div>
   </header>
+
+  <div class="info-bar">
+    <div class="info-chip seed-chip" id="seedChip" title="클릭해서 시드 변경">
+      <span class="info-label">시드</span>
+      <span class="info-val" id="seedChipVal">0</span>
+    </div>
+    <div class="info-chip pid-chip" id="pidChip" title="클릭해서 ID 변경 또는 복사">
+      <span class="info-label">ID</span>
+      <span class="info-val" id="pidChipVal">-</span>
+    </div>
+  </div>
 
   <div class="board-area">
     <div class="board" id="board"></div>
@@ -646,7 +678,15 @@ function newGame(useSeed){
   document.getElementById("resultOverlay").classList.remove("show");
   const sd = document.getElementById("seedDisplay");
   if(sd) sd.textContent = seed;
+  updateInfoBar();
   try { history.replaceState(null, "", "#s=" + seed); } catch(e) { try { location.hash = "s=" + seed; } catch(_){} }
+}
+
+function updateInfoBar(){
+  const sv = document.getElementById("seedChipVal");
+  const pv = document.getElementById("pidChipVal");
+  if(sv) sv.textContent = seed;
+  if(pv) pv.textContent = player.id.length > 12 ? player.id.slice(0,10) + "…" : player.id;
 }
 
 /* ===== 물리 키보드(데스크톱) ===== */
@@ -732,6 +772,83 @@ document.getElementById("restorePidBtn").addEventListener("click", async () => {
   document.getElementById("pidInput").value = "";
   loadLeaderboard();
   toast(ok ? "기록을 불러왔어요" : "그 ID의 기록이 없어 새로 시작합니다");
+});
+
+/* ===== 인포바 칩 인터랙션 ===== */
+/* 시드 칩 — 클릭 시 인라인 편집 */
+document.getElementById("seedChip").addEventListener("click", function(){
+  const chip = this;
+  if(chip.classList.contains("editing")) return;
+  chip.classList.add("editing");
+  const val = document.getElementById("seedChipVal");
+  val.innerHTML = `<input id="seedChipInput" inputmode="numeric" pattern="[0-9]*" value="${seed}" />`;
+  const inp = document.getElementById("seedChipInput");
+  inp.select(); inp.focus();
+  function apply(){
+    chip.classList.remove("editing");
+    const v = parseInt(inp.value, 10);
+    if(!isNaN(v) && v !== seed){
+      if(!gameOver && (currentRow > 0 || currentCol > 0)){
+        if(!confirm("진행 중인 게임을 포기하고 이 시드로 시작할까요?")){ val.textContent = seed; return; }
+      }
+      newGame(v);
+    } else {
+      val.textContent = seed;
+    }
+  }
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Enter"){ e.preventDefault(); apply(); }
+    if(e.key === "Escape"){ chip.classList.remove("editing"); val.textContent = seed; }
+    e.stopPropagation();
+  });
+  inp.addEventListener("blur", apply);
+  inp.addEventListener("click", e => e.stopPropagation());
+});
+
+/* ID 칩 — 클릭 시 인라인 편집 (이어받기) 또는 복사 */
+document.getElementById("pidChip").addEventListener("click", function(){
+  const chip = this;
+  if(chip.classList.contains("editing")) return;
+  chip.classList.add("editing");
+  const val = document.getElementById("pidChipVal");
+  val.innerHTML = `<input id="pidChipInput" value="${player.id}" placeholder="ID 입력 후 Enter" />`;
+  const inp = document.getElementById("pidChipInput");
+  inp.select(); inp.focus();
+  function apply(){
+    chip.classList.remove("editing");
+    const v = inp.value.replace(/[\/\s]/g, "").slice(0, 60);
+    if(v && v !== player.id){
+      if(!confirm("이 기기의 현재 기록을 버리고 입력한 ID의 기록을 불러옵니다. 계속할까요?")){ updateInfoBar(); return; }
+      player.id = v;
+      syncPlayerFromCloud(true).then(ok => {
+        savePlayer(); saveStats();
+        document.getElementById("pidDisplay").textContent = player.id;
+        document.getElementById("nameInput").value = player.name || "";
+        updateInfoBar();
+        toast(ok ? "기록을 불러왔어요" : "그 ID의 기록이 없어 새로 시작합니다");
+      });
+    } else {
+      updateInfoBar();
+    }
+  }
+  async function copyAndClose(){
+    chip.classList.remove("editing");
+    try{ await navigator.clipboard.writeText(player.id); toast("ID가 복사됐어요"); }
+    catch(e){ toast("ID를 길게 눌러 복사하세요"); }
+    updateInfoBar();
+  }
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Enter"){ e.preventDefault(); apply(); }
+    if(e.key === "Escape"){ chip.classList.remove("editing"); updateInfoBar(); }
+    e.stopPropagation();
+  });
+  inp.addEventListener("blur", () => {
+    /* 값이 그대로면 복사 동작 */
+    const v = inp.value.replace(/[\/\s]/g, "").slice(0, 60);
+    if(!v || v === player.id) copyAndClose();
+    else apply();
+  });
+  inp.addEventListener("click", e => e.stopPropagation());
 });
 
 /* ===== Firebase 랭킹 ===== */
@@ -839,6 +956,7 @@ function renderLeaderboard(rows){
 /* ===== 시작 ===== */
 initFirebase();
 newGame(seedFromHash());
+updateInfoBar();
 document.getElementById("helpOverlay").classList.add("show");
 </script>
 </body>
