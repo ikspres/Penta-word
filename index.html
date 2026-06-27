@@ -57,17 +57,17 @@
     border-bottom:1px solid var(--line-empty);
     flex-shrink:0;
   }
-  .brand{display:flex; flex-direction:column; line-height:1;}
+  .brand{display:flex; align-items:center; gap:12px; line-height:1;}
   .logo{
     font-family:var(--display);
     font-weight:700;
     font-size:26px;
     letter-spacing:.16em;
     color:var(--ink);
+    flex-shrink:0;
   }
   .logo span{color:var(--accent);}
-  .tag{font-size:11px; color:var(--muted); margin-top:5px; letter-spacing:.02em;}
-  .tools{display:flex; gap:8px;}
+  .tools{display:flex; gap:8px; flex-shrink:0;}
   .icon-btn{
     background:transparent;
     border:1px solid var(--line-filled);
@@ -249,8 +249,8 @@
   .pid-btn{border:1px solid var(--line-filled); border-radius:10px; background:var(--surface); color:var(--ink); font-weight:600; font-size:14px; padding:0 16px; cursor:pointer; flex-shrink:0;}
   .pid-btn:active{filter:brightness(.92);}
 
-  /* ---------- Info bar (플레이 화면 시드/ID 칩) ---------- */
-  .info-bar{display:flex; gap:7px; padding:7px 6px 0; flex-shrink:0;}
+  /* ---------- Info chips (헤더 내 PENTA 우측) ---------- */
+  .info-bar{display:flex; gap:6px; flex:1; min-width:0;}
   .info-chip{
     display:flex; align-items:center; gap:5px;
     background:var(--surface); border:1px solid var(--line-filled);
@@ -280,7 +280,16 @@
   <header>
     <div class="brand">
       <div class="logo">PEN<span>TA</span></div>
-      <div class="tag">여섯 번 안에 다섯 글자 영단어 맞히기</div>
+      <div class="info-bar">
+        <div class="info-chip seed-chip" id="seedChip" title="클릭해서 시드 변경">
+          <span class="info-label">문제</span>
+          <span class="info-val" id="seedChipVal">0</span>
+        </div>
+        <div class="info-chip pid-chip" id="pidChip" title="클릭해서 ID 변경 또는 복사">
+          <span class="info-label">유저</span>
+          <span class="info-val" id="pidChipVal">-</span>
+        </div>
+      </div>
     </div>
     <div class="tools">
       <button class="icon-btn" id="shareBtn" aria-label="친구와 함께하기">🔗</button>
@@ -288,17 +297,6 @@
       <button class="icon-btn" id="newBtn" aria-label="새 게임">↻</button>
     </div>
   </header>
-
-  <div class="info-bar">
-    <div class="info-chip seed-chip" id="seedChip" title="클릭해서 시드 변경">
-      <span class="info-label">시드</span>
-      <span class="info-val" id="seedChipVal">0</span>
-    </div>
-    <div class="info-chip pid-chip" id="pidChip" title="클릭해서 ID 변경 또는 복사">
-      <span class="info-label">ID</span>
-      <span class="info-val" id="pidChipVal">-</span>
-    </div>
-  </div>
 
   <div class="board-area">
     <div class="board" id="board"></div>
