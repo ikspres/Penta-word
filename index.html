@@ -244,6 +244,10 @@
   .lb-score{font-family:var(--display); font-weight:600; flex-shrink:0;}
   .lb-score.fail{color:var(--absent);}
   .lb-empty{color:var(--muted); font-size:13px; text-align:center; padding:14px 0;}
+  .pid-row{display:flex; gap:8px; align-items:stretch; margin-top:6px;}
+  .pid-code{flex:1; min-width:0; background:var(--bg); border:1px solid var(--line-filled); border-radius:10px; padding:11px 12px; font-family:var(--display); font-size:14px; color:var(--accent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; user-select:all; -webkit-user-select:all; display:flex; align-items:center;}
+  .pid-btn{border:1px solid var(--line-filled); border-radius:10px; background:var(--surface); color:var(--ink); font-weight:600; font-size:14px; padding:0 16px; cursor:pointer; flex-shrink:0;}
+  .pid-btn:active{filter:brightness(.92);}
 
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:.001s !important;}
@@ -329,6 +333,16 @@
     <div class="divider"></div>
     <h3 style="font-size:13px;margin:0 0 0;color:var(--ink);">랭킹에 표시될 이름</h3>
     <input id="nameInput" class="name-input" maxlength="20" placeholder="이름을 입력하세요" />
+
+    <h3 style="font-size:13px;margin:14px 0 0;color:var(--ink);">내 플레이어 ID <span style="color:var(--muted);font-weight:400;">— 다른 기기에서 입력하면 기록이 이어집니다</span></h3>
+    <div class="pid-row">
+      <code id="pidDisplay" class="pid-code">-</code>
+      <button id="copyPidBtn" class="pid-btn">복사</button>
+    </div>
+    <div class="seed-input-row" style="margin-top:8px;">
+      <input id="pidInput" placeholder="기존 ID 입력해 이어받기" style="font-size:14px;letter-spacing:0;" />
+      <button id="restorePidBtn">이어받기</button>
+    </div>
 
     <div class="divider"></div>
     <div class="lb-head">
@@ -582,6 +596,7 @@ function endGame(won){
   saveStats();
   lastResult = { won: won, tries: currentRow + 1 };
   submitScore(won, currentRow + 1);
+  writePlayerDoc();
 
   document.getElementById("statPlayed").textContent = stats.played;
   document.getElementById("statWins").textContent = stats.wins;
@@ -659,6 +674,7 @@ document.getElementById("shareBtn").addEventListener("click", () => {
   document.getElementById("seedDisplay").textContent = seed;
   document.getElementById("seedInput").value = "";
   document.getElementById("nameInput").value = player.name || "";
+  document.getElementById("pidDisplay").textContent = player.id;
   document.getElementById("shareOverlay").classList.add("show");
   loadLeaderboard();
 });
@@ -693,8 +709,29 @@ document.getElementById("resultLbBtn").addEventListener("click", () => {
   document.getElementById("resultOverlay").classList.remove("show");
   document.getElementById("seedDisplay").textContent = seed;
   document.getElementById("nameInput").value = player.name || "";
+  document.getElementById("pidDisplay").textContent = player.id;
   document.getElementById("shareOverlay").classList.add("show");
   loadLeaderboard();
+});
+
+/* 플레이어 ID 복사 / 다른 기기에서 이어받기 */
+document.getElementById("copyPidBtn").addEventListener("click", async () => {
+  try{ await navigator.clipboard.writeText(player.id); toast("ID가 복사됐어요"); }
+  catch(e){ toast("ID를 길게 눌러 복사하세요"); }
+});
+document.getElementById("restorePidBtn").addEventListener("click", async () => {
+  const v = document.getElementById("pidInput").value.replace(/[\/\s]/g, "").slice(0, 60);
+  if(!v){ toast("이어받을 ID를 입력하세요"); return; }
+  if(!fbReady){ toast("랭킹(Firebase)이 켜져 있어야 이어받을 수 있어요"); return; }
+  if(!confirm("이 기기의 현재 기록을 버리고 입력한 ID의 기록을 불러옵니다. 계속할까요?")) return;
+  player.id = v;
+  const ok = await syncPlayerFromCloud(true);
+  savePlayer(); saveStats();
+  document.getElementById("pidDisplay").textContent = player.id;
+  document.getElementById("nameInput").value = player.name || "";
+  document.getElementById("pidInput").value = "";
+  loadLeaderboard();
+  toast(ok ? "기록을 불러왔어요" : "그 ID의 기록이 없어 새로 시작합니다");
 });
 
 /* ===== Firebase 랭킹 ===== */
@@ -706,6 +743,7 @@ async function initFirebase(){
     const app = appMod.initializeApp(FIREBASE_CONFIG);
     fb = { db: fsMod.getFirestore(app), fs: fsMod };
     fbReady = true;
+    await syncPlayerFromCloud(false);
     if(document.getElementById("shareOverlay").classList.contains("show")) loadLeaderboard();
   }catch(e){ console.warn("Firebase 초기화 실패:", e); }
 }
@@ -723,6 +761,45 @@ async function submitScore(won, tries){
       createdAt: serverTimestamp()
     });
   }catch(e){ console.warn("점수 저장 실패:", e); }
+}
+
+/* 플레이어 누적 기록을 클라우드에 저장 (기기 간 공유의 핵심) */
+async function writePlayerDoc(){
+  if(!fbReady) return;
+  try{
+    const { doc, setDoc, serverTimestamp } = fb.fs;
+    await setDoc(doc(fb.db, "players", player.id), {
+      name: (player.name || "익명").slice(0, 20),
+      played: stats.played, wins: stats.wins,
+      streak: stats.streak, maxStreak: stats.maxStreak,
+      dist: stats.dist || {}, updatedAt: serverTimestamp()
+    }, { merge: true });
+  }catch(e){ console.warn("플레이어 기록 저장 실패:", e); }
+}
+
+/* 클라우드에서 내 기록 가져오기. adopt=true면 입력한 ID 기록을 그대로 채택,
+   adopt=false면 같은 ID 동기화(더 큰 값으로 병합해 손실 방지) */
+async function syncPlayerFromCloud(adopt){
+  if(!fbReady) return false;
+  try{
+    const { doc, getDoc } = fb.fs;
+    const snap = await getDoc(doc(fb.db, "players", player.id));
+    if(!snap.exists()) return false;
+    const d = snap.data();
+    if(adopt){
+      player.name = d.name || player.name;
+      stats.played = d.played || 0; stats.wins = d.wins || 0;
+      stats.streak = d.streak || 0; stats.maxStreak = d.maxStreak || 0;
+      stats.dist = d.dist || {};
+    } else {
+      stats.played = Math.max(stats.played, d.played || 0);
+      stats.wins = Math.max(stats.wins, d.wins || 0);
+      stats.maxStreak = Math.max(stats.maxStreak, d.maxStreak || 0);
+      if(!player.name && d.name) player.name = d.name;
+    }
+    saveStats(); savePlayer();
+    return true;
+  }catch(e){ console.warn(e); return false; }
 }
 
 async function loadLeaderboard(){
