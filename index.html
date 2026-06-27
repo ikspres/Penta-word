@@ -57,7 +57,7 @@
     border-bottom:1px solid var(--line-empty);
     flex-shrink:0;
   }
-  .brand{display:flex; align-items:center; gap:12px; line-height:1;}
+  .brand{display:flex; align-items:center; gap:12px; line-height:1; position:relative;}
   .logo{
     font-family:var(--display);
     font-weight:700;
@@ -249,6 +249,32 @@
   .pid-btn{border:1px solid var(--line-filled); border-radius:10px; background:var(--surface); color:var(--ink); font-weight:600; font-size:14px; padding:0 16px; cursor:pointer; flex-shrink:0;}
   .pid-btn:active{filter:brightness(.92);}
 
+  /* ---------- 문제 칩 팝오버 ---------- */
+  .seed-popover{
+    position:absolute; top:calc(100% + 6px); left:0;
+    background:var(--surface); border:1px solid var(--line-filled);
+    border-radius:12px; padding:12px; width:220px; z-index:200;
+    display:none; flex-direction:column; gap:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  .seed-popover.open{display:flex;}
+  .sp-row{display:flex; gap:8px;}
+  .sp-input{
+    flex:1; min-width:0; background:var(--bg); border:1px solid var(--line-filled);
+    border-radius:8px; color:var(--ink); font-family:var(--display);
+    font-size:16px; font-weight:600; padding:8px 10px; text-align:center;
+  }
+  .sp-input:focus{outline:none; border-color:var(--accent);}
+  .sp-btn{
+    border:none; border-radius:8px; font-weight:700; font-size:14px;
+    padding:8px 14px; cursor:pointer; font-family:var(--ui); white-space:nowrap;
+  }
+  .sp-btn.accent{background:var(--accent); color:#06201f;}
+  .sp-btn.full{width:100%; padding:10px;}
+  .sp-btn.full:not(.ghost){background:var(--line-filled); color:var(--ink);}
+  .sp-btn.ghost{background:transparent; border:1px solid var(--line-filled); color:var(--muted);}
+  .sp-btn:active{filter:brightness(.88);}
+
   /* ---------- Info chips (헤더 내 PENTA 우측) ---------- */
   .info-bar{display:flex; gap:6px; flex:1; min-width:0;}
   .info-chip{
@@ -258,17 +284,9 @@
     font-size:12px; min-width:0; transition:border-color .15s;
   }
   .info-chip:active{border-color:var(--accent);}
-  .info-chip.editing{border-color:var(--accent);}
   .info-label{color:var(--muted); flex-shrink:0; letter-spacing:.02em;}
   .info-val{color:var(--accent); font-family:var(--display); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .info-chip.pid-chip{flex:1; min-width:0;}
-  .info-chip input{
-    background:transparent; border:none; outline:none;
-    color:var(--accent); font-family:var(--display); font-size:12px;
-    font-weight:600; min-width:0; padding:0;
-  }
-  .info-chip.seed-chip input{width:64px;}
-  .info-chip.pid-chip input{width:100%; flex:1;}
 
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:.001s !important;}
@@ -292,11 +310,19 @@
       </div>
     </div>
     <div class="tools">
-      <button class="icon-btn" id="shareBtn" aria-label="친구와 함께하기">🔗</button>
       <button class="icon-btn" id="helpBtn" aria-label="게임 방법">?</button>
-      <button class="icon-btn" id="newBtn" aria-label="새 게임">↻</button>
     </div>
   </header>
+
+  <!-- 문제 칩 팝오버 -->
+  <div class="seed-popover" id="seedPopover">
+    <div class="sp-row">
+      <input id="spInput" class="sp-input" inputmode="numeric" pattern="[0-9]*" placeholder="번호 입력" />
+      <button id="spGoBtn" class="sp-btn accent">시작</button>
+    </div>
+    <button id="spRandomBtn" class="sp-btn full">랜덤 새 문제</button>
+    <button id="spCopyBtn" class="sp-btn full ghost">친구에게 공유</button>
+  </div>
 
   <div class="board-area">
     <div class="board" id="board"></div>
@@ -351,43 +377,31 @@
   </div>
 </div>
 
-<!-- Share / seed / leaderboard modal -->
-<div class="overlay" id="shareOverlay">
+<!-- 유저 오버레이 -->
+<div class="overlay" id="userOverlay">
   <div class="card how-wrap" style="text-align:left;">
-    <button class="close-x" id="closeShare" aria-label="닫기">×</button>
-    <h2 style="font-family:var(--display);font-size:22px;margin:0 0 8px;">친구와 같은 단어로</h2>
-    <p style="margin:0; color:var(--muted); font-size:14px; line-height:1.6;">아래 시드 번호를 카카오톡으로 보내고, 친구가 같은 번호를 입력하면 똑같은 단어가 나와요. 각자 풀면 아래 랭킹에 자동으로 올라갑니다.</p>
-    <div class="seed-display" id="seedDisplay">0</div>
-    <button class="play-btn ghost-btn" id="copySeedBtn">시드 메시지 복사</button>
+    <button class="close-x" id="closeUser" aria-label="닫기">×</button>
+    <h2 style="font-family:var(--display);font-size:22px;margin:0 0 14px;">내 정보</h2>
 
-    <div class="divider"></div>
     <h3 style="font-size:13px;margin:0 0 0;color:var(--ink);">랭킹에 표시될 이름</h3>
     <input id="nameInput" class="name-input" maxlength="20" placeholder="이름을 입력하세요" />
 
-    <h3 style="font-size:13px;margin:14px 0 0;color:var(--ink);">내 플레이어 ID <span style="color:var(--muted);font-weight:400;">— 다른 기기에서 입력하면 기록이 이어집니다</span></h3>
+    <h3 style="font-size:13px;margin:14px 0 0;color:var(--ink);">유저 번호 <span style="color:var(--muted);font-weight:400;">— 다른 기기에서 입력하면 기록이 이어집니다</span></h3>
     <div class="pid-row">
       <code id="pidDisplay" class="pid-code">-</code>
       <button id="copyPidBtn" class="pid-btn">복사</button>
     </div>
     <div class="seed-input-row" style="margin-top:8px;">
-      <input id="pidInput" placeholder="기존 ID 입력해 이어받기" style="font-size:14px;letter-spacing:0;" />
+      <input id="pidInput" placeholder="기존 번호 입력해 이어받기" style="font-size:14px;letter-spacing:0;" />
       <button id="restorePidBtn">이어받기</button>
     </div>
 
     <div class="divider"></div>
     <div class="lb-head">
-      <h3>이 시드 랭킹</h3>
+      <h3>이 문제 랭킹</h3>
       <button class="lb-refresh" id="lbRefresh" aria-label="새로고침">↻</button>
     </div>
     <div class="lb-list" id="lbList"><div class="lb-empty">한 판을 끝내면 랭킹에 올라갑니다.</div></div>
-
-    <div class="divider"></div>
-    <h3 style="font-size:13px;margin:0 0 8px;color:var(--ink);">친구가 보낸 시드로 시작</h3>
-    <div class="seed-input-row">
-      <input id="seedInput" inputmode="numeric" pattern="[0-9]*" placeholder="시드 번호 입력" />
-      <button id="useSeedBtn">시작</button>
-    </div>
-    <button class="play-btn" id="randomSeedBtn" style="margin-top:14px;">새 랜덤 시드로 시작</button>
   </div>
 </div>
 
@@ -674,8 +688,6 @@ function newGame(useSeed){
   buildBoard();
   buildKeyboard();
   document.getElementById("resultOverlay").classList.remove("show");
-  const sd = document.getElementById("seedDisplay");
-  if(sd) sd.textContent = seed;
   updateInfoBar();
   try { history.replaceState(null, "", "#s=" + seed); } catch(e) { try { location.hash = "s=" + seed; } catch(_){} }
 }
@@ -691,51 +703,76 @@ function updateInfoBar(){
 document.addEventListener("keydown", e => {
   if(e.target && e.target.tagName === "INPUT") return;
   if(document.getElementById("resultOverlay").classList.contains("show")) return;
-  if(document.getElementById("shareOverlay").classList.contains("show")) return;
+  if(document.getElementById("userOverlay").classList.contains("show")) return;
+  if(document.getElementById("seedPopover").classList.contains("open")) return;
   if(e.key === "Enter") handleKey("enter");
   else if(e.key === "Backspace") handleKey("back");
   else if(/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toLowerCase());
 });
 
 /* ===== 버튼 ===== */
-document.getElementById("newBtn").addEventListener("click", () => {
-  if(!gameOver && currentRow === 0 && currentCol === 0){ newGame(); return; }
-  if(gameOver || confirm("진행 중인 게임을 포기하고 새로 시작할까요?")) newGame();
-});
 document.getElementById("againBtn").addEventListener("click", newGame);
 document.getElementById("helpBtn").addEventListener("click", () => document.getElementById("helpOverlay").classList.add("show"));
 document.getElementById("closeHelp").addEventListener("click", () => document.getElementById("helpOverlay").classList.remove("show"));
 document.getElementById("startFromHelp").addEventListener("click", () => document.getElementById("helpOverlay").classList.remove("show"));
 
-/* 공유(함께하기) */
-document.getElementById("shareBtn").addEventListener("click", () => {
-  document.getElementById("seedDisplay").textContent = seed;
-  document.getElementById("seedInput").value = "";
-  document.getElementById("nameInput").value = player.name || "";
-  document.getElementById("pidDisplay").textContent = player.id;
-  document.getElementById("shareOverlay").classList.add("show");
-  loadLeaderboard();
+/* ===== 문제 칩 팝오버 ===== */
+function openSeedPopover(){
+  const pop = document.getElementById("seedPopover");
+  document.getElementById("spInput").value = "";
+  pop.classList.add("open");
+  document.getElementById("spInput").focus();
+}
+function closeSeedPopover(){ document.getElementById("seedPopover").classList.remove("open"); }
+
+document.getElementById("seedChip").addEventListener("click", e => {
+  e.stopPropagation();
+  const pop = document.getElementById("seedPopover");
+  if(pop.classList.contains("open")) closeSeedPopover();
+  else openSeedPopover();
 });
-document.getElementById("closeShare").addEventListener("click", () => document.getElementById("shareOverlay").classList.remove("show"));
-document.getElementById("randomSeedBtn").addEventListener("click", () => {
-  document.getElementById("shareOverlay").classList.remove("show");
-  newGame();
-});
-document.getElementById("useSeedBtn").addEventListener("click", () => {
-  const raw = document.getElementById("seedInput").value.replace(/[^0-9]/g, "");
-  const v = parseInt(raw, 10);
-  if(isNaN(v)){ toast("시드 번호를 입력하세요"); return; }
-  document.getElementById("shareOverlay").classList.remove("show");
+document.getElementById("seedPopover").addEventListener("click", e => e.stopPropagation());
+document.addEventListener("click", closeSeedPopover);
+
+document.getElementById("spGoBtn").addEventListener("click", () => {
+  const v = parseInt(document.getElementById("spInput").value.replace(/[^0-9]/g, ""), 10);
+  if(isNaN(v)){ toast("번호를 입력하세요"); return; }
+  closeSeedPopover();
+  if(!gameOver && (currentRow > 0 || currentCol > 0)){
+    if(!confirm("진행 중인 게임을 포기하고 이 문제로 시작할까요?")) return;
+  }
   newGame(v);
 });
-document.getElementById("seedInput").addEventListener("keydown", e => {
-  if(e.key === "Enter") document.getElementById("useSeedBtn").click();
+document.getElementById("spInput").addEventListener("keydown", e => {
+  if(e.key === "Enter"){ e.preventDefault(); document.getElementById("spGoBtn").click(); }
+  if(e.key === "Escape") closeSeedPopover();
+  e.stopPropagation();
 });
-document.getElementById("copySeedBtn").addEventListener("click", async () => {
-  const msg = `PENTA 단어게임 같이 해요! 🎯 같은 단어로 풀려면 시드 ${seed} 를 입력하세요.`;
+document.getElementById("spRandomBtn").addEventListener("click", () => {
+  closeSeedPopover();
+  if(!gameOver && (currentRow > 0 || currentCol > 0)){
+    if(!confirm("진행 중인 게임을 포기하고 새로 시작할까요?")) return;
+  }
+  newGame();
+});
+document.getElementById("spCopyBtn").addEventListener("click", async () => {
+  const msg = `PENTA 단어게임 같이 해요! 같은 문제로 풀려면 문제 번호 ${seed} 를 입력하세요. https://ikspres.github.io/Penta-word/`;
   try { await navigator.clipboard.writeText(msg); toast("복사됐어요! 카톡에 붙여넣기"); }
-  catch(e){ toast("위 숫자를 길게 눌러 복사하세요"); }
+  catch(e){ toast("복사 실패 — 번호를 직접 공유하세요"); }
 });
+
+/* ===== 유저 오버레이 ===== */
+function openUserOverlay(){
+  document.getElementById("nameInput").value = player.name || "";
+  document.getElementById("pidDisplay").textContent = player.id;
+  document.getElementById("userOverlay").classList.add("show");
+  loadLeaderboard();
+}
+document.getElementById("pidChip").addEventListener("click", e => {
+  e.stopPropagation();
+  openUserOverlay();
+});
+document.getElementById("closeUser").addEventListener("click", () => document.getElementById("userOverlay").classList.remove("show"));
 
 /* 이름 입력 / 랭킹 버튼 */
 document.getElementById("nameInput").addEventListener("input", e => {
@@ -745,11 +782,7 @@ document.getElementById("nameInput").addEventListener("input", e => {
 document.getElementById("lbRefresh").addEventListener("click", loadLeaderboard);
 document.getElementById("resultLbBtn").addEventListener("click", () => {
   document.getElementById("resultOverlay").classList.remove("show");
-  document.getElementById("seedDisplay").textContent = seed;
-  document.getElementById("nameInput").value = player.name || "";
-  document.getElementById("pidDisplay").textContent = player.id;
-  document.getElementById("shareOverlay").classList.add("show");
-  loadLeaderboard();
+  openUserOverlay();
 });
 
 /* 플레이어 ID 복사 / 다른 기기에서 이어받기 */
@@ -772,82 +805,6 @@ document.getElementById("restorePidBtn").addEventListener("click", async () => {
   toast(ok ? "기록을 불러왔어요" : "그 ID의 기록이 없어 새로 시작합니다");
 });
 
-/* ===== 인포바 칩 인터랙션 ===== */
-/* 시드 칩 — 클릭 시 인라인 편집 */
-document.getElementById("seedChip").addEventListener("click", function(){
-  const chip = this;
-  if(chip.classList.contains("editing")) return;
-  chip.classList.add("editing");
-  const val = document.getElementById("seedChipVal");
-  val.innerHTML = `<input id="seedChipInput" inputmode="numeric" pattern="[0-9]*" value="${seed}" />`;
-  const inp = document.getElementById("seedChipInput");
-  inp.select(); inp.focus();
-  function apply(){
-    chip.classList.remove("editing");
-    const v = parseInt(inp.value, 10);
-    if(!isNaN(v) && v !== seed){
-      if(!gameOver && (currentRow > 0 || currentCol > 0)){
-        if(!confirm("진행 중인 게임을 포기하고 이 시드로 시작할까요?")){ val.textContent = seed; return; }
-      }
-      newGame(v);
-    } else {
-      val.textContent = seed;
-    }
-  }
-  inp.addEventListener("keydown", e => {
-    if(e.key === "Enter"){ e.preventDefault(); apply(); }
-    if(e.key === "Escape"){ chip.classList.remove("editing"); val.textContent = seed; }
-    e.stopPropagation();
-  });
-  inp.addEventListener("blur", apply);
-  inp.addEventListener("click", e => e.stopPropagation());
-});
-
-/* ID 칩 — 클릭 시 인라인 편집 (이어받기) 또는 복사 */
-document.getElementById("pidChip").addEventListener("click", function(){
-  const chip = this;
-  if(chip.classList.contains("editing")) return;
-  chip.classList.add("editing");
-  const val = document.getElementById("pidChipVal");
-  val.innerHTML = `<input id="pidChipInput" value="${player.id}" placeholder="ID 입력 후 Enter" />`;
-  const inp = document.getElementById("pidChipInput");
-  inp.select(); inp.focus();
-  function apply(){
-    chip.classList.remove("editing");
-    const v = inp.value.replace(/[\/\s]/g, "").slice(0, 60);
-    if(v && v !== player.id){
-      if(!confirm("이 기기의 현재 기록을 버리고 입력한 ID의 기록을 불러옵니다. 계속할까요?")){ updateInfoBar(); return; }
-      player.id = v;
-      syncPlayerFromCloud(true).then(ok => {
-        savePlayer(); saveStats();
-        document.getElementById("pidDisplay").textContent = player.id;
-        document.getElementById("nameInput").value = player.name || "";
-        updateInfoBar();
-        toast(ok ? "기록을 불러왔어요" : "그 ID의 기록이 없어 새로 시작합니다");
-      });
-    } else {
-      updateInfoBar();
-    }
-  }
-  async function copyAndClose(){
-    chip.classList.remove("editing");
-    try{ await navigator.clipboard.writeText(player.id); toast("ID가 복사됐어요"); }
-    catch(e){ toast("ID를 길게 눌러 복사하세요"); }
-    updateInfoBar();
-  }
-  inp.addEventListener("keydown", e => {
-    if(e.key === "Enter"){ e.preventDefault(); apply(); }
-    if(e.key === "Escape"){ chip.classList.remove("editing"); updateInfoBar(); }
-    e.stopPropagation();
-  });
-  inp.addEventListener("blur", () => {
-    /* 값이 그대로면 복사 동작 */
-    const v = inp.value.replace(/[\/\s]/g, "").slice(0, 60);
-    if(!v || v === player.id) copyAndClose();
-    else apply();
-  });
-  inp.addEventListener("click", e => e.stopPropagation());
-});
 
 /* ===== Firebase 랭킹 ===== */
 async function initFirebase(){
@@ -859,7 +816,7 @@ async function initFirebase(){
     fb = { db: fsMod.getFirestore(app), fs: fsMod };
     fbReady = true;
     await syncPlayerFromCloud(false);
-    if(document.getElementById("shareOverlay").classList.contains("show")) loadLeaderboard();
+    if(document.getElementById("userOverlay").classList.contains("show")) loadLeaderboard();
   }catch(e){ console.warn("Firebase 초기화 실패:", e); }
 }
 
