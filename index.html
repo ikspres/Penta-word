@@ -689,6 +689,7 @@ function newGame(useSeed){
   buildKeyboard();
   document.getElementById("resultOverlay").classList.remove("show");
   updateInfoBar();
+  subscribeScores();
   try { history.replaceState(null, "", "#s=" + seed); } catch(e) { try { location.hash = "s=" + seed; } catch(_){} }
 }
 
@@ -816,6 +817,7 @@ async function initFirebase(){
     fb = { db: fsMod.getFirestore(app), fs: fsMod };
     fbReady = true;
     await syncPlayerFromCloud(false);
+    subscribeScores();
     if(document.getElementById("userOverlay").classList.contains("show")) loadLeaderboard();
   }catch(e){ console.warn("Firebase 초기화 실패:", e); }
 }
@@ -906,6 +908,31 @@ function renderLeaderboard(rows){
     row.querySelector(".lb-name").textContent = r.name || "익명";
     listEl.appendChild(row);
   });
+}
+
+/* ===== 실시간 알림 (onSnapshot) ===== */
+let unsubScores = null;   // 현재 구독 해제 함수
+
+function subscribeScores(){
+  if(!fbReady) return;
+  if(unsubScores) unsubScores();   // 이전 시드 구독 해제
+  const { collection, query, where, onSnapshot } = fb.fs;
+  const q = query(collection(fb.db, "scores"), where("seed", "==", seed));
+  const knownIds = new Set();
+  unsubScores = onSnapshot(q, snap => {
+    snap.forEach(d => knownIds.add(d.id));   // 첫 로드: 기존 기록 등록만
+    snap.docChanges().forEach(change => {
+      if(change.type !== "added") return;
+      if(knownIds.has(change.doc.id) && snap.metadata.fromCache) return;
+      const d = change.doc.data();
+      if(d.playerId === player.id) return;   // 내 점수는 무시
+      const name = (d.name || "익명").slice(0, 12);
+      const score = d.won ? `${d.guesses}/6` : "실패";
+      toast(`${name}님이 이 문제를 ${score}로 끝냈어요!`, 3500);
+      /* 유저 오버레이가 열려있으면 랭킹도 갱신 */
+      if(document.getElementById("userOverlay").classList.contains("show")) loadLeaderboard();
+    });
+  }, e => console.warn("실시간 구독 오류:", e));
 }
 
 /* ===== 시작 ===== */
